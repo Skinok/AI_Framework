@@ -1,85 +1,51 @@
 #
-# Call it this way : python launcher.py 1000
+# Call it this way :
+# python --name Angela --episodes 1500 --mode train
+# python --load Angela --mode train --episodes 5000
+# python --load Angela --mode test
 #
+import sys,os
+import argparse
 import time
+import numpy as np 
+
+# our code
 from trainer import Trainer
 from game import Game
+import doMagic
 
-import numpy as np 
-import sys,os
-# Lancer l’entrainement
-# La fonction d’entrainement est un peu plus complexe, puisqu’on va executer une première partie ou l’on va remplir en partie la mémoire. 
-# Cela nous permettra de pouvoir créer des batch avec assez de données plus rapidement. Cette phase se déroule entre les lignes 22 et 34 du code ci-dessous.
-# 
-# La deuxième phase est l’entrainement du réseau. On lance un entrainement à chaque 100 mouvements. 
-# On pourrait essayer d’en lancer plus ou moins souvent, l’apprentissage en serait surement impacté au niveau rapidité de convergence et qualité du minimum local. 
-# En général, lorsqu’un algorithme converge trop vite, le minimum local sera moins bon.
+#
+# Command line arguments
+#
+parser = argparse.ArgumentParser(description="Train and test different networks on Space Invaders")
 
-def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=5000):
-    batch_size = 32
-    game = Game(4, 4, wrong_action_p, alea=alea)
-    counter = 1
-    scores = []
-    global_counter = 0
-    losses = [0]
-    epsilons = []
+# Parse arguments
+# parser.add_argument("-n", "--network", type=str, action='store', help="Please specify the network you wish to use, either DQN or DDQN", required=True)
+parser.add_argument("-e", "--episodes", type=str, action='store', help="Number of episodes to run", required=True)
+parser.add_argument("-n", "--name", type=str, action='store', help="Please specify the name of your AI model (bob, louis, estelle...)", required=True)
+parser.add_argument("-m", "--mode", type=str, action='store', help="Please specify the mode you wish to run, either train or test", required=True)
+parser.add_argument("-l", "--load", type=str, action='store', help="Please specify the file you wish to load weights from(for example saved.h5)", required=False)
+# parser.add_argument("-s", "--save", type=str, action='store', help="Specify folder to render simulation of network in", required=False)
+# parser.add_argument("-x", "--statistics", action='store_true', help="Specify to calculate statistics of network(such as average score on game)", required=False)
+# parser.add_argument("-v", "--view", action='store_true', help="Display the network playing a game of space-invaders. Is overriden by the -s command", required=False)
+args = parser.parse_args()
+print(args)
 
-    # we start with a sequence to collect information, without learning
-    if collecting:
-        collecting_steps = 10000
-        print("Collecting game without learning")
-        steps = 0
-        while steps < collecting_steps:
-            state = game.reset()
-            done = False
-            while not done:
-                steps += 1
-                action = game.get_random_action()
-                next_state, reward, done, _ = game.move(action)
-                trainer.remember(state, action, reward, next_state, done)
-                state = next_state
+#
+# Load a new trainer
+#
+myTrainer = Trainer(name=args.name,  learning_rate=0.001, epsilon_decay=0.999995)
 
-    print("Starting training")  
-    global_counter = 0
-    for e in range(episodes+1):
-        state = game.generate_game()
-        state = np.reshape(state, [1, 64])
-        score = 0
-        done = False
-        steps = 0
-        while not done:
-            steps += 1
-            global_counter += 1
-            action = trainer.get_best_action(state)
-            trainer.decay_epsilon()
-            next_state, reward, done, _ = game.move(action)
-            next_state = np.reshape(next_state, [1, 64])
-            score += reward
-            trainer.remember(state, action, reward, next_state, done)  # ici on enregistre le sample dans la mémoire
-            state = next_state
-            if global_counter % 100 == 0:
-                l = trainer.replay(batch_size)   # ici on lance le 'replay', c'est un entrainement du réseau
-                losses.append(l.history['loss'][0])
-            if done:
-                scores.append(score)
-                epsilons.append(trainer.epsilon)
-            if steps > 200:
-                break
-        if e % 200 == 0:
-            print("episode: {}/{}, moves: {}, score: {}, epsilon: {}, loss: {}"
-                  .format(e, episodes, steps, score, trainer.epsilon, losses[-1]))
-        if e > 0 and e % snapshot == 0:
-            trainer.save(id='iteration-%s' % e)
-    return scores, losses, epsilons
+#
+# Train the choosen model
+#
+if args.mode == "train":
+    scores, losses, epsilons = train(episodes=args.episodes, trainer=myTrainer, wrong_action_p=0.1, alea=True, snapshot=2000)
 
 
-# name=model to load previous model
-# load previous model : name="1611870402.1308398-iteration-8000"
-myTrainer = Trainer(learning_rate=0.001, epsilon_decay=0.999995)
-# First arguments is number of episodes
-numberOfEpisodes = int(sys.argv[1])
-scores, losses, epsilons = train(numberOfEpisodes, myTrainer, 0.1, True, snapshot=2000)
-
+#
+# Draw results => move this to another file
+#
 import matplotlib.pyplot as plt
 score = np.array(scores)
 score_c = np.convolve(score, np.full((10,), 1/10), mode="same")

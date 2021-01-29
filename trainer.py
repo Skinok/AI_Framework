@@ -1,6 +1,7 @@
 # https://cdancette.fr/2018/01/03/reinforcement-learning-part3/
 
 import numpy as np
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation
 from tensorflow.keras.optimizers import RMSprop, Adam, SGD
@@ -9,6 +10,7 @@ from tensorflow.keras.layers import LeakyReLU
 import tensorflow
 import random
 import time,os
+
 from collections import deque
 
 class Trainer:
