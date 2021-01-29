@@ -42,7 +42,6 @@ myTrainer = Trainer(name=args.name,  learning_rate=0.001, epsilon_decay=0.999995
 if args.mode == "train":
     scores, losses, epsilons = train(episodes=args.episodes, trainer=myTrainer, wrong_action_p=0.1, alea=True, snapshot=2000)
 
-
 #
 # Draw results => move this to another file
 #

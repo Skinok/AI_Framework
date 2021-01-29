@@ -102,7 +102,6 @@ class Trainer:
     # similairement à la fonction train de l’article précédent. 
     # La différence est qu’ici, on crée un batch de plusieurs samples, au lieu de n’en donner qu’un 
     # (on voit que la dimension des input et output est (batch_size, state_size), alors qu’elle n’avait qu’une dimension précedemment.
-
     def save(self, id=None, overwrite=False):
         name = 'model'
         if self.name:
