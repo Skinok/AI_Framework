@@ -13,10 +13,20 @@ import time,os
 
 from collections import deque
 
+##
+# High Parameters
+
+
+
+##
+
 class Trainer:
     def __init__(self, name=None, learning_rate=0.001, epsilon_decay=0.9999, batch_size=30, memory_size=3000):
+
         self.state_size = 110*84
+
         self.action_size = 4
+
         self.gamma = 0.9
         self.epsilon = 1.0
         self.epsilon_min = 0.01
@@ -110,7 +120,6 @@ class Trainer:
 
         return self.model.fit(inputs, outputs, epochs=1, verbose=0, batch_size=batch_size)
 
-    
     # Ainsi, ici, on va utiliser random.sample pour piocher un certain nombres d’éléments aléatoirement dans la mémoire. 
     # On crée alors nos entrées et sorties dans le bon format pour le réseau de neurone, similairement à la fonction train de l’article précédent. 
     # La différence est qu’ici, on crée un batch de plusieurs samples, au lieu de n’en donner qu’un 

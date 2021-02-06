@@ -17,42 +17,55 @@ from collections import deque
 stack_size = 4
 frame_size = (110, 84)
 
-def preprocess_data(frame):
+def preprocess_frame(frame):
+    # Greyscale frame
+    gray = rgb2gray(frame)
 
-    return 
+    # Crop the screen (remove the part below the player)
+    # [Up: Down, Left: right]
+    cropped_frame = gray[8:-12,4:-12]
 
-def stack_data(stacked_data, state, is_new_episode):
+    # Normalize Pixel Values
+    normalized_frame = cropped_frame/255.0
+
+    # Resize
+    # Thanks to Mikołaj Walkowiak
+    preprocessed_frame = transform.resize(normalized_frame, [110,84])
+
+    return preprocessed_frame # 110x84x1 frame
+
+def stack_frames(stacked_frames, state, is_new_episode):
     # Preprocess frame
-    frame = preprocess_data(state)
+    frame = preprocess_frame(state)
 
     print(" Glurp : " + str(frame.shape))
 
     if is_new_episode:
         # Clear our stacked_frames
-        stacked_data = deque([np.zeros((110,84), dtype=np.int) for i in range(stack_size)], maxlen=4)
+        stacked_frames = deque([np.zeros((110,84), dtype=np.int) for i in range(stack_size)], maxlen=4)
 
         # Because we're in a new episode, copy the same frame 4x
-        stacked_data.append(frame)
-        stacked_data.append(frame)
-        stacked_data.append(frame)
-        stacked_data.append(frame)
+        stacked_frames.append(frame)
+        stacked_frames.append(frame)
+        stacked_frames.append(frame)
+        stacked_frames.append(frame)
 
         # Stack the frames
-        stacked_state = np.stack(stacked_data, axis=2)
+        stacked_state = np.stack(stacked_frames, axis=2)
 
     else:
         # Append frame to deque, automatically removes the oldest frame
-        stacked_data.append(frame)
+        stacked_frames.append(frame)
 
         # Build the stacked state (first dimension specifies different frames)
-        stacked_state = np.stack(stacked_data, axis=2)
+        stacked_state = np.stack(stacked_frames, axis=2)
 
-    return stacked_state, stacked_data
+    return stacked_state, stacked_frames
 
 def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=5000):
     batch_size = 32
-
-    env = retro.make(game='SpaceInvaders-Atari2600', record='.')
+    #game = Game(4, 4, wrong_action_p, alea=alea)
+    game = retro.make(game='SpaceInvaders-Atari2600', record='.')
 
     counter = 1
     scores = []
@@ -63,15 +76,15 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
     # we start with a sequence to collect information, without learning
     if collecting:
         collecting_steps = 10000
-        print("Collecting env without learning")
+        print("Collecting game without learning")
         steps = 0
         while steps < collecting_steps:
-            state = env.reset()
+            state = game.reset()
             done = False
             while not done:
                 steps += 1
-                action = random.randint(0, nev.action_space.n - 1)  #env.get_random_action()
-                next_state, reward, done, _ = env.step(action)
+                action = random.randint(0, game.action_space.n - 1)  #game.get_random_action()
+                next_state, reward, done, _ = game.step(action)
                 
                 print("Next state :" + next_state)
                 print("Next state :" + next_state.shape)
@@ -88,19 +101,19 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
         # Fames stacked
         #stacked_frames = deque([np.zeros(frame_size) for _ in range(stack_size)], maxlen=stack_size)
 
-        # New env : reset all variables
-        state = env.reset()
+        # New game : reset all variables
+        state = game.reset()
 
         #next_state,stacked_frames = stack_frames(stacked_frames,next_state, True)
-        next_state = preprocess_data(state)
-        possible_actions = np.array(np.identity(env.action_space.n, dtype=np.int).tolist())
+        next_state = preprocess_frame(state)
+        possible_actions = np.array(np.identity(game.action_space.n, dtype=np.int).tolist())
         score = 0
         done = False
         steps = 0
 
         # Game !
         while not done:
-            env.render()
+            game.render()
             steps += 1
             global_counter += 1
             print("get_best_action state " + str(state.shape))
@@ -109,7 +122,7 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
 
             print(" Action : " + str(action))
 
-            next_state, reward, done, _ = env.step(str(action))
+            next_state, reward, done, _ = game.step(str(action))
             
             # Replace reshape by stack_frames
             #next_state,stacked_frames = stack_frames(stacked_frames, next_state, False)

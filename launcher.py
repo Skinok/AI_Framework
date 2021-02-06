@@ -11,7 +11,6 @@ import numpy as np
 
 # our code
 from trainer import Trainer
-from game import Game
 import doMagic as magic
 
 #
