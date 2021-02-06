@@ -51,8 +51,7 @@ class SpaceInvader(object):
         self.deep_q.load_network(path)
 
     def convert_process_buffer(self):
-        """Converts the list of NUM_FRAMES images in the process buffer
-        into one training sample"""
+        """Converts the list of NUM_FRAMES images in the process buffer into one training sample"""
         black_buffer = [cv2.resize(cv2.cvtColor(x, cv2.COLOR_RGB2GRAY), (84, 90)) for x in self.process_buffer]
         black_buffer = [x[1:85, :, np.newaxis] for x in black_buffer]
         return np.concatenate(black_buffer, axis=2)
@@ -67,6 +66,7 @@ class SpaceInvader(object):
 
         while observation_num < num_frames:
             if observation_num % 1000 == 999:
+                self.deep_q.save_network("saved_model.h5")
                 print(("Executing loop %d" %observation_num))
 
             # Slowly decay the learning rate
@@ -94,8 +94,10 @@ class SpaceInvader(object):
                 #if observation_num % 10000 == 9999:
                 if total_reward > max_reward:
                     max_reward = total_reward
-                    print("Saving Network with a total of reward equal to ", total_reward)
-                    self.deep_q.save_network("saved_best_game_model_10k.h5")
+                    print(" ")
+                    print("Network won a total of reward equal to ", total_reward)
+                    print(" ")
+                    
                 self.env.reset()
                 alive_frame = 0
                 total_reward = 0

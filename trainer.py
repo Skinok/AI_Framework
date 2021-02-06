@@ -3,7 +3,7 @@
 import numpy as np
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.optimizers import RMSprop, Adam, SGD
 from tensorflow.keras.layers import LeakyReLU
 
@@ -15,7 +15,7 @@ from collections import deque
 
 class Trainer:
     def __init__(self, name=None, learning_rate=0.001, epsilon_decay=0.9999, batch_size=30, memory_size=3000):
-        self.state_size = 64
+        self.state_size = 110*84
         self.action_size = 4
         self.gamma = 0.9
         self.epsilon = 1.0
@@ -36,19 +36,27 @@ class Trainer:
         self.name = name
         if name is not None:
             print(" Loading model : " + "model-" + name)
-            model = tensorflow.keras.models.load_model("model-" + name)
-            if model is None:
-            	print("Failure : Could not load model")
+            if os.path.exists("model-" + name):
+                model = tensorflow.keras.models.load_model("model-" + name)
+            else:
+                print("Creating new model")
+                model = Sequential()
+
+                # Layer d'entrée
+                # On a ajouté une nouvelle couche à notre réseau (Dense 50) (pour lui donner une meilleur force de représentation des données).
+                #   dimension : taille d'un seul échantillon de données (ici une image donc widht * height)
+                model.add(Dense(50, input_shape=(110,84), activation='relu'))
+
+                # Layer cachés (hidden)
+                model.add(Dense(30, activation='relu'))
+                model.add(Dense(30, activation='relu'))
+
+                # Layer de sortie 
+                #    taille : nombre d'actions possibles par l'IA dans le jeu
+                model.add(Dense(self.action_size, activation='linear'))
+                model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
         else:
-            print("Creating new model")
-            model = Sequential()
-            # On a juste ajouté une nouvelle couche à notre réseau (Dense 50) (pour lui donner une meilleur force de représentation des données).
-            model.add(Dense(50, input_dim=self.state_size, activation='relu'))
-            model.add(Dense(30, activation='relu'))
-            model.add(Dense(30, activation='relu'))
-            model.add(Dense(self.action_size, activation='linear'))
-            model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
-        
+            print("Please provide a name for your model")
 
         self.model = model
 
@@ -62,7 +70,7 @@ class Trainer:
             return random.randrange(self.action_size)
         
         # Predict the reward value based on the given state
-        act_values = self.model.predict(np.array(state))
+        act_values = self.model.predict(state.reshape(1,110,84))
 
         # Pick the action based on the predicted reward
         action =  np.argmax(act_values[0])  
@@ -85,9 +93,15 @@ class Trainer:
         outputs = np.zeros((batch_size, self.action_size))
 
         for i, (state, action, reward, next_state, done) in enumerate(minibatch):
-            target = self.model.predict(state)[0]
+
+            print("state " + str(state.shape))
+            print("next_state " + str(next_state.shape))
+
+            self.model.summary()
+
+            target = self.model.predict( state.reshape(1,110,84) ) #[0]
             if done:
-                target[action] = reward
+                target[action] = reward  
             else:
                 target[action] = reward + self.gamma * np.max(self.model.predict(next_state))
 
@@ -98,8 +112,7 @@ class Trainer:
 
     
     # Ainsi, ici, on va utiliser random.sample pour piocher un certain nombres d’éléments aléatoirement dans la mémoire. 
-    # On crée alors nos entrées et sorties dans le bon format pour le réseau de neurone, 
-    # similairement à la fonction train de l’article précédent. 
+    # On crée alors nos entrées et sorties dans le bon format pour le réseau de neurone, similairement à la fonction train de l’article précédent. 
     # La différence est qu’ici, on crée un batch de plusieurs samples, au lieu de n’en donner qu’un 
     # (on voit que la dimension des input et output est (batch_size, state_size), alors qu’elle n’avait qu’une dimension précedemment.
     def save(self, id=None, overwrite=False):

@@ -1,8 +1,8 @@
 #
 # Call it this way :
-# python --name Angela --episodes 1500 --mode train
-# python --load Angela --mode train --episodes 5000
-# python --load Angela --mode test
+# python launcher.py --name Angela --episodes 1500 --mode train
+# python launcher.py --load Angela --mode train --episodes 5000
+# python launcher.py --load Angela --mode test
 #
 import sys,os
 import argparse
@@ -12,7 +12,7 @@ import numpy as np
 # our code
 from trainer import Trainer
 from game import Game
-import doMagic
+import doMagic as magic
 
 #
 # Command line arguments
@@ -40,7 +40,7 @@ myTrainer = Trainer(name=args.name,  learning_rate=0.001, epsilon_decay=0.999995
 # Train the choosen model
 #
 if args.mode == "train":
-    scores, losses, epsilons = train(episodes=args.episodes, trainer=myTrainer, wrong_action_p=0.1, alea=True, snapshot=2000)
+    scores, losses, epsilons = magic.train(episodes=int(args.episodes), trainer=myTrainer, wrong_action_p=0.1, alea=True, snapshot=2000)
 
 #
 # Draw results => move this to another file

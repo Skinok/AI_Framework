@@ -2,4 +2,15 @@
 https://github.com/openai/retro
 Gym Retro lets you turn classic video games into Gym environments for reinforcement learning and comes with integrations for ~1000 games. It uses various emulators that support the Libretro API, making it fairly easy to add new emulators.
 
-https://github.com/Urinx/ReinforcementLearning
+https://retro.readthedocs.io/en/latest/integration.html#supported-roms
+
+
+
+
+
+
+
+Very serious chinese github repository :
+	https://github.com/Urinx/ReinforcementLearning
+
+
