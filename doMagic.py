@@ -92,7 +92,7 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
         state = env.reset()
 
         #next_state,stacked_frames = stack_frames(stacked_frames,next_state, True)
-        next_state = preprocess_data(state)
+        #next_state = preprocess_data(state)
         possible_actions = np.array(np.identity(env.action_space.n, dtype=np.int).tolist())
         score = 0
         done = False
@@ -104,6 +104,7 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
             steps += 1
             global_counter += 1
             print("get_best_action state " + str(state.shape))
+
             action = trainer.get_best_action(state)
             trainer.decay_epsilon()
 
@@ -113,7 +114,7 @@ def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=50
             
             # Replace reshape by stack_frames
             #next_state,stacked_frames = stack_frames(stacked_frames, next_state, False)
-            next_state = preprocess_frame(state)
+            #next_state = preprocess_data(state)
 
             score += reward
             trainer.remember(state, action, reward, next_state, done)  # ici on enregistre le sample dans la mémoire
