@@ -15,21 +15,13 @@ from collections import deque
 
 ##
 # High Parameters
-
-
-
 ##
 
 class Trainer:
-    def __init__(self, name=None, learning_rate=0.001, epsilon_decay=0.9999, batch_size=30, memory_size=3000):
-
-        self.state_size = 110*84
-
-        self.action_size = 4
+    def __init__(self, name=None, learning_rate=0.001, epsilon = 0.85, epsilon_decay=0.01, batch_size=30, memory_size=3000):
 
         self.gamma = 0.9
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
+        self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.learning_rate = learning_rate
 
@@ -40,14 +32,22 @@ class Trainer:
         # Pour lancer l’entrainement sur un batch de données.
         # dequeue Il s’agit d’une queue qui peut avoir une taille limitée, qui va supprimer automatiquement les éléments ajoutés les premiers lorsque la taille limite est atteinte.
         self.memory = deque(maxlen=memory_size)
-
         self.batch_size = batch_size
-        
+
+        self.stack_size = 1
+
         self.name = name
-        if name is not None:
-            print(" Loading model : " + "model-" + name)
-            if os.path.exists("model-" + name):
-                model = tensorflow.keras.models.load_model("model-" + name)
+
+
+    def create_or_load_model(self,state_shape, action_size):
+
+        self.state_shape = state_shape
+        self.action_size = action_size
+
+        if self.name is not None:
+            print(" Loading model : " + "model-" + self.name)
+            if os.path.exists("model-" + self.name):
+                model = tensorflow.keras.models.load_model("model-" + self.name)
             else:
                 print("Creating new model")
                 model = Sequential()
@@ -55,11 +55,11 @@ class Trainer:
                 # Layer d'entrée
                 # On a ajouté une nouvelle couche à notre réseau (Dense 50) (pour lui donner une meilleur force de représentation des données).
                 #   dimension : taille d'un seul échantillon de données (ici une image donc widht * height)
-                model.add(Dense(50, input_shape=(110,84), activation='relu'))
+                model.add(Dense(4, input_shape=state_shape, activation='relu'))
 
                 # Layer cachés (hidden)
-                model.add(Dense(30, activation='relu'))
-                model.add(Dense(30, activation='relu'))
+                model.add(Dense(6, activation='relu'))
+                model.add(Dense(6, activation='relu'))
 
                 # Layer de sortie 
                 #    taille : nombre d'actions possibles par l'IA dans le jeu
@@ -69,9 +69,17 @@ class Trainer:
             print("Please provide a name for your model")
 
         self.model = model
+        self.model.summary()
 
-    def decay_epsilon(self):
-        self.epsilon *= self.epsilon_decay
+    def decay_epsilon(self, current_episode, nb_total_episodes):
+        # Epsilon policy
+        self.START_EPSILON_DECAYING = 1
+        self.END_EPSILON_DECAYING = nb_total_episodes // 2
+
+        epsilon_decay_value = self.epsilon / (self.END_EPSILON_DECAYING - self.START_EPSILON_DECAYING)
+
+        if self.END_EPSILON_DECAYING >= current_episode >= self.START_EPSILON_DECAYING:
+          self.epsilon -= epsilon_decay_value
     
     def get_best_action(self, state, rand=True):
 
@@ -80,9 +88,12 @@ class Trainer:
             return random.randrange(self.action_size)
         
         # Predict the reward value based on the given state
-        act_values = self.model.predict(state.reshape(1,110,84))
+        state = np.resize( state, (self.stack_size, len(state)) )
+        act_values = self.model.predict(state)
 
         # Pick the action based on the predicted reward
+        #print("Choose action based on prediction : ")
+        #str("          " + str(act_values))
         action =  np.argmax(act_values[0])  
         return action
 
@@ -95,30 +106,51 @@ class Trainer:
 
     #  il nous faut une fonction replay qui va piocher dans la mémoire, et donner ces données aux réseau de neurone.
     def replay(self, batch_size):
+        #print(" Replay to get better")
         batch_size = min(batch_size, len(self.memory))
 
         minibatch = random.sample(self.memory, batch_size)
 
-        inputs = np.zeros((batch_size, self.state_size))
+        inputs = np.zeros((batch_size, 2))
         outputs = np.zeros((batch_size, self.action_size))
 
         for i, (state, action, reward, next_state, done) in enumerate(minibatch):
 
-            print("state " + str(state.shape))
-            print("next_state " + str(next_state.shape))
+            #print("state " + str(state.shape))
+            #print("new size : " + str(np.array(state)))
+            #print("next_state " + str(next_state.shape))
 
-            self.model.summary()
+            state = np.resize( state, (self.stack_size, len(state)) )
+            next_state = np.resize( next_state, (self.stack_size, len(next_state)) )
 
-            target = self.model.predict( state.reshape(1,110,84) ) #[0]
+            #print("resized state " + str(state))
+            #print("resized state shape " + str(state.shape))
+
+            #print("resized next_state " + str(next_state))
+            #print("resized next_state shape " + str(next_state.shape))
+
+            target = self.model.predict( state, batch_size = 1 ) #[0]
             if done:
-                target[action] = reward  
+                target[0,action] = reward  
             else:
-                target[action] = reward + self.gamma * np.max(self.model.predict(next_state))
+                #print("Next state : " + str(next_state))
+                predictions = self.model.predict(next_state, batch_size = 1)
+                
+                #print(" predictions : " + str(predictions))
+                max_future_q = np.amax( predictions[0] )
+                #print("maximum : " + str(maximum))
 
-            inputs[i] = state
-            outputs[i] = target
+                # self.gamma is DISCOUNT
+                target[0,action] = reward + self.gamma * max_future_q
 
-        return self.model.fit(inputs, outputs, epochs=1, verbose=0, batch_size=batch_size)
+            inputs[i] = state[0]
+            outputs[i] = target[0]
+
+        #print("   Fit model")
+        history = self.model.fit(inputs, outputs, epochs=1, verbose=0, batch_size=batch_size, shuffle=False)
+
+        #print("End Replay to get better i="+str(i))
+        return history
 
     # Ainsi, ici, on va utiliser random.sample pour piocher un certain nombres d’éléments aléatoirement dans la mémoire. 
     # On crée alors nos entrées et sorties dans le bon format pour le réseau de neurone, similairement à la fonction train de l’article précédent. 

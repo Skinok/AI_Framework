@@ -9,9 +9,11 @@ import argparse
 import time
 import numpy as np 
 
+import gym
+
 # our code
 from trainer import Trainer
-import doMagic as magic
+from doMagic import Magician
 
 #
 # Command line arguments
@@ -30,16 +32,49 @@ parser.add_argument("-l", "--load", type=str, action='store', help="Please speci
 args = parser.parse_args()
 print(args)
 
+
 #
-# Load a new trainer
+# Create the environment (Game, Trading, whatever...)
 #
-myTrainer = Trainer(name=args.name,  learning_rate=0.001, epsilon_decay=0.999995)
+environment = gym.make("MountainCar-v0")
+
+#
+# Create or load a trainer
+#
+#if args.load:
+    # load here a new trainer model
+#else:
+myTrainer = Trainer(name=args.name, batch_size=8, learning_rate=0.001, epsilon = 0.6, epsilon_decay=0.01)
+
+# Give the trainer the size of the environment and the number of possible actions
+
+#
+# observation_space : API
+#
+# observation_space.low / observation_space.high / observation_space.shape
+# observation_space.sample() / observation_space.contains()
+
+obs_space_high = environment.observation_space.high
+obs_space_low = environment.observation_space.low
+
+print(" observation_space : " + str(environment.observation_space))
+print(" High : " + str(environment.observation_space.high))
+print(" Low : " + str(environment.observation_space.low))
+print(" Shape : " + str(environment.observation_space.shape))
+
+myTrainer.create_or_load_model(environment.observation_space.shape,environment.action_space.n)
+
+#
+# Create the Magician who deals with the Trainer and the Environment
+#
+magician = Magician(trainer= myTrainer, env=environment)
 
 #
 # Train the choosen model
 #
 if args.mode == "train":
-    scores, losses, epsilons = magic.train(episodes=int(args.episodes), trainer=myTrainer, wrong_action_p=0.1, alea=True, snapshot=2000)
+    scores, losses, epsilons = magician.train(episodes=int(args.episodes), trainer=myTrainer, snapshot=10)
+
 
 #
 # Draw results => move this to another file

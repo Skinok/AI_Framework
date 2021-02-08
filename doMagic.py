@@ -7,135 +7,169 @@
 # La deuxième phase est l’entrainement du réseau. On lance un entrainement à chaque 100 mouvements. 
 # On pourrait essayer d’en lancer plus ou moins souvent, l’apprentissage en serait surement impacté au niveau rapidité de convergence et qualité du minimum local. 
 # En général, lorsqu’un algorithme converge trop vite, le minimum local sera moins bon.
-import retro 
+import retro
+import gym
 import numpy as np
 from skimage import transform
 from skimage.color import rgb2gray
 from collections import deque
 
 # Constant
-stack_size = 4
-frame_size = (110, 84)
+SHOW_EVERY = 500
 
-def preprocess_data(frame):
+class Magician:
 
-    return 
 
-def stack_data(stacked_data, state, is_new_episode):
-    # Preprocess frame
-    frame = preprocess_data(state)
+    def __init__(self,trainer, env):
+        self.agent = trainer
+        self.env = env
 
-    print(" Glurp : " + str(frame.shape))
+    def preprocess_data(self,frame):
 
-    if is_new_episode:
-        # Clear our stacked_frames
-        stacked_data = deque([np.zeros((110,84), dtype=np.int) for i in range(stack_size)], maxlen=4)
+        return 
 
-        # Because we're in a new episode, copy the same frame 4x
-        stacked_data.append(frame)
-        stacked_data.append(frame)
-        stacked_data.append(frame)
-        stacked_data.append(frame)
+    def stack_data(self,stacked_data, state, is_new_episode):
+        # Preprocess frame
+        frame = preprocess_data(state)
 
-        # Stack the frames
-        stacked_state = np.stack(stacked_data, axis=2)
+        print(" Glurp : " + str(frame.shape))
 
-    else:
-        # Append frame to deque, automatically removes the oldest frame
-        stacked_data.append(frame)
+        if is_new_episode:
+            # Clear our stacked_frames
+            stacked_data = deque([np.zeros((110,84), dtype=np.int) for i in range(stack_size)], maxlen=4)
 
-        # Build the stacked state (first dimension specifies different frames)
-        stacked_state = np.stack(stacked_data, axis=2)
+            # Because we're in a new episode, copy the same frame 4x
+            stacked_data.append(frame)
+            stacked_data.append(frame)
+            stacked_data.append(frame)
+            stacked_data.append(frame)
 
-    return stacked_state, stacked_data
+            # Stack the frames
+            stacked_state = np.stack(stacked_data, axis=2)
 
-def train(episodes, trainer, wrong_action_p, alea, collecting=False, snapshot=5000):
-    batch_size = 32
+        else:
+            # Append frame to deque, automatically removes the oldest frame
+            stacked_data.append(frame)
 
-    env = retro.make(game='SpaceInvaders-Atari2600', record='.')
+            # Build the stacked state (first dimension specifies different frames)
+            stacked_state = np.stack(stacked_data, axis=2)
 
-    counter = 1
-    scores = []
-    global_counter = 0
-    losses = [0]
-    epsilons = []
+        return stacked_state, stacked_data
 
-    # we start with a sequence to collect information, without learning
-    if collecting:
-        collecting_steps = 10000
-        print("Collecting env without learning")
-        steps = 0
-        while steps < collecting_steps:
+    def train(self,episodes, trainer, collecting=False, snapshot=500):
+        
+        batch_size = 8
+
+        #env = retro.make(game='SpaceInvaders-Atari2600', record='.')
+        env = gym.make("MountainCar-v0")
+
+        counter = 1
+        scores = []
+        global_counter = 0
+        losses = [0]
+        epsilons = []
+
+        # we start with a sequence to collect information, without learning
+        if collecting:
+            collecting_steps = 10000
+            print("Collecting env without learning")
+            steps = 0
+            while steps < collecting_steps:
+                state = env.reset()
+
+                print("Initial state : " + state)
+                done = False
+                while not done:
+                    steps += 1
+                    action = random.randint(0, env.action_space.n - 1)  #env.get_random_action()
+                    next_state, reward, done, _ = env.step(action)
+                    
+                    print("Next state :" + next_state)
+                    print("Next state :" + next_state.shape)
+                    print("Next state :" + str(next_state))
+
+                    trainer.remember(state, action, reward, next_state, done)
+                    state = next_state
+
+        print("Starting training")
+
+        #  An episode is a new game
+        for episode in range(episodes+1):
+
+            # Visually display this episode ? It's slow
+            if episode % snapshot == 0:
+                print(episode)
+                render = True
+            else:
+                render = False
+
+            # Fames stacked
+            #stacked_frames = deque([np.zeros(frame_size) for _ in range(stack_size)], maxlen=stack_size)
+
+            # New env : reset all variables
             state = env.reset()
+
+            #next_state,stacked_frames = stack_frames(stacked_frames,next_state, True)
+            #next_state = preprocess_data(state)
+            #possible_actions = np.array(np.identity(env.action_space.n, dtype=np.int).tolist())
+
+            score = 0
             done = False
+            steps = 0
+
+            # Game !
+            print("")
+            print("------")
+            print("New game")
+
             while not done:
+
+                if render:
+                    env.render()
+
                 steps += 1
-                action = random.randint(0, nev.action_space.n - 1)  #env.get_random_action()
+                global_counter += 1
+                #print("get_best_action state " + str(state.shape))
+
+                action = trainer.get_best_action(state)
+
+                # Aim is to get Epsilon around 0 when the number of episodes arrive to the end
+                trainer.decay_epsilon(episode, episodes)
+
+                #print("Epsilon = " + str(trainer.epsilon))
+
                 next_state, reward, done, _ = env.step(action)
                 
-                print("Next state :" + next_state)
-                print("Next state :" + next_state.shape)
-                print("Next state :" + str(next_state))
+                # Replace reshape by stack_frames
+                #next_state,stacked_frames = stack_frames(stacked_frames, next_state, False)
+                #next_state = preprocess_data(state)
 
-                trainer.remember(state, action, reward, next_state, done)
+                score += reward
+                trainer.remember(state, action, reward, next_state, done)  # ici on enregistre le sample dans la mémoire
                 state = next_state
 
-    print("Starting training")
-    episodes = 1
+                #if global_counter % 0 == 0:
+                if not render:
+                    l = trainer.replay(batch_size)   # ici on lance le 'replay', c'est un entrainement du réseau
+                    losses.append(l.history['loss'][0])
 
-    for e in range(episodes+1):
+                #print(" Action : " + str(action) + " Score : " + str(score))
+                if done:
+                    print("Cool done ! score : " + str(score) )
+                    scores.append(score)
+                    epsilons.append(trainer.epsilon)
 
-        # Fames stacked
-        #stacked_frames = deque([np.zeros(frame_size) for _ in range(stack_size)], maxlen=stack_size)
+                print(" Steps : " + str(steps))
+                #if steps > 200:
+                #    break
 
-        # New env : reset all variables
-        state = env.reset()
+            print(" Episode : " + str(episode) + " score : " + str(score))
 
-        #next_state,stacked_frames = stack_frames(stacked_frames,next_state, True)
-        #next_state = preprocess_data(state)
-        possible_actions = np.array(np.identity(env.action_space.n, dtype=np.int).tolist())
-        score = 0
-        done = False
-        steps = 0
+            if episode % 200 == 0:
+                print("episode: {}/{}, moves: {}, score: {}, epsilon: {}, loss: {}"
+                      .format(episode, episodes, steps, score, trainer.epsilon, losses[-1]))
 
-        # Game !
-        while not done:
-            env.render()
-            steps += 1
-            global_counter += 1
-            print("get_best_action state " + str(state.shape))
+            #if episode > 0 and episode % snapshot == 0:
+            #    trainer.save(id='iteration-%s' % episode)
 
-            action = trainer.get_best_action(state)
-            trainer.decay_epsilon()
-
-            print(" Action : " + str(action))
-
-            next_state, reward, done, _ = env.step(str(action))
-            
-            # Replace reshape by stack_frames
-            #next_state,stacked_frames = stack_frames(stacked_frames, next_state, False)
-            #next_state = preprocess_data(state)
-
-            score += reward
-            trainer.remember(state, action, reward, next_state, done)  # ici on enregistre le sample dans la mémoire
-            state = next_state
-
-            if global_counter % 100 == 0:
-                l = trainer.replay(batch_size)   # ici on lance le 'replay', c'est un entrainement du réseau
-                losses.append(l.history['loss'][0])
-
-            if done:
-                scores.append(score)
-                epsilons.append(trainer.epsilon)
-
-            if steps > 200:
-                break
-
-        if e % 200 == 0:
-            print("episode: {}/{}, moves: {}, score: {}, epsilon: {}, loss: {}"
-                  .format(e, episodes, steps, score, trainer.epsilon, losses[-1]))
-
-        if e > 0 and e % snapshot == 0:
-            trainer.save(id='iteration-%s' % e)
-
-    return scores, losses, epsilons
+        return scores, losses, epsilons
